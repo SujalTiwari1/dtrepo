@@ -14,6 +14,9 @@ import AdminDashboard from "./pages/Admin/AdminDashboard";
 import PostUpdatePage from "./pages/Teacher/PostUpdatePage";
 import StudentSchedulePage from "./pages/Student/StudentSchedulePage";
 
+import Signup from "./pages/Signup";
+import ProfilePage from "./pages/Student/ProfilePage";
+
 function App() {
   return (
     <Router>
@@ -45,6 +48,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["student"]}>
                 <StudentSchedulePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/student/profile"
+            element={
+              <ProtectedRoute allowedRoles={["student"]}>
+                <ProfilePage />
               </ProtectedRoute>
             }
           />
@@ -98,6 +109,8 @@ function App() {
 
         {/* Route without Navbar */}
         <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
       </Routes>
     </Router>
   );

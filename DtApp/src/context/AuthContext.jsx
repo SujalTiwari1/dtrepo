@@ -1,12 +1,12 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { auth, db } from '../firebase/config';
+import { doc, getDoc, setDoc } from 'firebase/firestore'; // Make sure setDoc is imported
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged 
 } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
 
 // Create the context
 const AuthContext = React.createContext();
@@ -23,8 +23,19 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   // --- Authentication Functions ---
-  function signup(email, password) {
-    return createUserWithEmailAndPassword(auth, email, password);
+  function signup(email, password, additionalData) {
+    return createUserWithEmailAndPassword(auth, email, password)
+      .then(userCredential => {
+        // After user is created in Auth, save their data in Firestore
+        const user = userCredential.user;
+        const userDocRef = doc(db, 'users', user.uid);
+        return setDoc(userDocRef, {
+          uid: user.uid,
+          email: email,
+          role: 'student', // All signups are students
+          ...additionalData // This will include rollNumber, phone
+        });
+      });
   }
 
   function login(email, password) {
