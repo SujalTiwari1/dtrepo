@@ -5,28 +5,25 @@ const BRANCH_MAP = {
   '108': 'Electronics & Computer Science (EXCS)',
 };
 
-// New helper function to extract and format the username
+// This helper map is for getting the short code
+const BRANCH_SHORT_MAP = {
+    '101': 'IT',
+    '102': 'CMPN',
+    '104': 'EXTC',
+    '108': 'EXCS',
+};
+
 const extractUsernameFromEmail = (email) => {
   if (!email || !email.includes('@')) return 'N/A';
-  
-  // Get the part before the '@' symbol
   const localPart = email.split('@')[0];
-  
-  // Split by the dot
   const nameParts = localPart.split('.');
   if (nameParts.length < 2) return 'N/A';
-
   const firstName = nameParts[0];
-  // Get the second part and remove any numbers from it
   const lastName = nameParts[1].replace(/[0-9]/g, '');
-
-  // Capitalize the first letter of each name
   const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-
   return `${capitalize(firstName)} ${capitalize(lastName)}`;
 };
 
-// The main function now accepts 'email' as a second argument
 export const decodeRollNumber = (rollNumber, email) => {
   if (!rollNumber || rollNumber.length !== 10) {
     return { error: "Invalid Roll Number format." };
@@ -36,7 +33,6 @@ export const decodeRollNumber = (rollNumber, email) => {
   const branchCode = rollNumber.substring(2, 5);
   const division = rollNumber.substring(5, 6);
   const specificRollNo = rollNumber.substring(6);
-
   const admissionYear = 2000 + admissionYearShort;
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1; // 1-12
@@ -57,9 +53,10 @@ export const decodeRollNumber = (rollNumber, email) => {
   }
 
   return {
-    username: extractUsernameFromEmail(email), // The new username field
+    username: extractUsernameFromEmail(email),
     admissionYear,
     branch: BRANCH_MAP[branchCode] || 'Unknown Branch',
+    branchShortName: BRANCH_SHORT_MAP[branchCode] || 'UNKNOWN', // This is the new, important part
     division,
     specificRollNo,
     currentAcademicYear: academicYear > 4 ? 'Graduated' : academicYear,

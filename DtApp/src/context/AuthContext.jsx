@@ -23,7 +23,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   // --- Authentication Functions ---
-  function signup(email, password, additionalData) {
+  function signup(email, password, additionalData, role = 'student') { // Takes 'role' as an argument
     return createUserWithEmailAndPassword(auth, email, password)
       .then(userCredential => {
         // After user is created in Auth, save their data in Firestore
@@ -32,8 +32,8 @@ export function AuthProvider({ children }) {
         return setDoc(userDocRef, {
           uid: user.uid,
           email: email,
-          role: 'student', // All signups are students
-          ...additionalData // This will include rollNumber, phone
+          role: role, // Uses the 'role' variable passed to the function
+          ...additionalData
         });
       });
   }
