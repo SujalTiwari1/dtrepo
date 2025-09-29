@@ -1,3 +1,4 @@
+import StudentPrintPage from './pages/Student/StudentPrintPage';
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
@@ -13,6 +14,9 @@ import AdminDashboard from "./pages/Admin/AdminDashboard";
 
 import PostUpdatePage from "./pages/Teacher/PostUpdatePage";
 import StudentSchedulePage from "./pages/Student/StudentSchedulePage";
+// New Import
+import StaffPrintQueuePage from "./pages/Staff/StaffPrintQueuePage";
+
 
 function App() {
   return (
@@ -33,14 +37,6 @@ function App() {
             }
           />
           <Route
-            path="/student"
-            element={
-              <ProtectedRoute allowedRoles={["student"]}>
-                <StudentDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
             path="/student/schedule"
             element={
               <ProtectedRoute allowedRoles={["student"]}>
@@ -48,16 +44,18 @@ function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* Teacher Routes */}
-          <Route
-            path="/teacher"
+          <Route // NEW STUDENT PRINT ROUTE
+            path="/student/print"
             element={
-              <ProtectedRoute allowedRoles={["teacher"]}>
-                <TeacherDashboard />
+              <ProtectedRoute allowedRoles={["student"]}>
+                <StudentPrintPage />
               </ProtectedRoute>
             }
           />
+
+          {/* NOTE: You still need to add the /student/print route here if you haven't already */}
+
+          {/* Teacher Routes */}
           <Route
             path="/teacher"
             element={
@@ -84,6 +82,15 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route // NEW ROUTE ADDED HERE
+            path="/staff/queue"
+            element={
+              <ProtectedRoute allowedRoles={["staff", "admin"]}> {/* Admin also needs access */}
+                <StaffPrintQueuePage />
+              </ProtectedRoute>
+            }
+          />
+
 
           {/* Admin Routes */}
           <Route
