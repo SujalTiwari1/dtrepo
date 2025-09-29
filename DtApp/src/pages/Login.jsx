@@ -4,12 +4,14 @@ import { useNavigate } from 'react-router-dom';
 import styles from './Login.module.css';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import { Link } from 'react-router-dom'; // Make sure this is imported
+
 
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { login } = useAuth();
+  const { login,logout } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -77,6 +79,13 @@ function Login() {
         </div>
         <button type="submit" className={styles.submitButton}>Log In</button>
       </form>
+
+      <p style={{marginTop: '1rem'}}>
+    Don't have an account? <Link to="/signup">Sign Up</Link>
+</p>
+<p>
+    Signing up as a Teacher? <Link to="/signup/teacher">Click Here</Link>
+</p>
     </div>
   );
 }

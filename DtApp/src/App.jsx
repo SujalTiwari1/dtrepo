@@ -18,6 +18,11 @@ import StudentSchedulePage from "./pages/Student/StudentSchedulePage";
 import StaffPrintQueuePage from "./pages/Staff/StaffPrintQueuePage";
 
 
+import Signup from "./pages/Signup";
+import ProfilePage from "./pages/Student/ProfilePage";
+
+import TeacherSignup from './pages/TeacherSignup';
+
 function App() {
   return (
     <Router>
@@ -52,6 +57,14 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/student/profile"
+            element={
+              <ProtectedRoute allowedRoles={["student"]}>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* NOTE: You still need to add the /student/print route here if you haven't already */}
 
@@ -72,6 +85,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/signup/teacher" element={<TeacherSignup />} />
 
           {/* Staff Routes */}
           <Route
@@ -105,6 +119,8 @@ function App() {
 
         {/* Route without Navbar */}
         <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
       </Routes>
     </Router>
   );
