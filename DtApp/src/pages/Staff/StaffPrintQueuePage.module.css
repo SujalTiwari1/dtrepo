@@ -1,0 +1,116 @@
+.queueContainer {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.noJobs {
+  font-size: 1.2rem;
+  color: #90ee90; /* Light green for success/positive message */
+  margin: 2rem 0;
+}
+
+.jobList {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.jobCard {
+  background-color: #2c2c2c;
+  padding: 1.5rem;
+  border-radius: 8px;
+  border-left: 5px solid #007bff;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.jobDetails {
+  flex-grow: 1;
+}
+
+.jobId {
+  color: #87CEEB; /* Light blue */
+  font-weight: bold;
+}
+
+.jobDetails a {
+  color: #90EE90; /* Light green for file links */
+  text-decoration: none;
+}
+
+.jobActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.statusBadge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-weight: bold;
+  color: #111; /* Dark text for contrast */
+  margin-bottom: 0.5rem;
+  min-width: 100px;
+  text-align: center;
+}
+
+.readyButton,
+.collectedButton {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+
+.readyButton {
+  background-color: #007bff;
+  color: white;
+}
+
+.readyButton:hover {
+  background-color: #0056b3;
+}
+
+.collectedButton {
+  background-color: #6c757d;
+  color: white;
+}
+
+.collectedButton:hover {
+  background-color: #5a6268;
+}
+
+.refreshButton {
+  margin-top: 2rem;
+  padding: 0.75rem 1.5rem;
+  background-color: #333;
+  color: white;
+  border: 1px solid #555;
+  border-radius: 4px;
+  cursor: pointer;
+}
+/* ... existing styles above ... */
+
+.deleteButton {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: bold;
+  background-color: #dc3545; /* Red for danger/delete */
+  color: white;
+  margin-top: 5px; /* Separate it visually from the other buttons */
+}
+
+.deleteButton:hover {
+  background-color: #c82333;
+}
