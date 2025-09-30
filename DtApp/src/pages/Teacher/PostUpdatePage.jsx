@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react"; // Import useCallback
 import { db } from "../../firebase/config";
 import {
   collection,
@@ -18,55 +18,50 @@ import toast, { Toaster } from "react-hot-toast";
 function PostUpdatePage() {
   const { currentUser } = useAuth();
 
-  // State for the teacher's profile data
   const [teachingAssignments, setTeachingAssignments] = useState([]);
-
-  // Form state
   const [selectedAssignmentIndex, setSelectedAssignmentIndex] = useState("");
   const [updateType, setUpdateType] = useState("Cancelled");
   const [message, setMessage] = useState("");
   const [eventDate, setEventDate] = useState("");
-
-  // Data state
   const [updates, setUpdates] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch teacher's assignments and their past updates
-  useEffect(() => {
+  // --- THIS IS THE MOVED FUNCTION ---
+  // It is now in the main component scope and wrapped in useCallback for optimization.
+  const fetchData = useCallback(async () => {
     if (!currentUser) return;
 
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // 1. Fetch Teacher's Profile to get their assignments
-        const userDocRef = doc(db, "users", currentUser.uid);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists() && userDoc.data().teachingAssignments) {
-          setTeachingAssignments(userDoc.data().teachingAssignments);
-        }
-
-        // 2. Fetch past updates posted by this teacher
-        const updatesCollection = collection(db, "lecture_updates");
-        const q = query(
-          updatesCollection,
-          where("teacherId", "==", currentUser.uid),
-          orderBy("createdAt", "desc")
-        );
-        const querySnapshot = await getDocs(q);
-        const updatesData = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setUpdates(updatesData);
-      } catch (error) {
-        console.error("Error fetching data: ", error);
-        toast.error("Failed to fetch your data.");
+    setLoading(true);
+    try {
+      const userDocRef = doc(db, "users", currentUser.uid);
+      const userDoc = await getDoc(userDocRef);
+      if (userDoc.exists() && userDoc.data().teachingAssignments) {
+        setTeachingAssignments(userDoc.data().teachingAssignments);
       }
-      setLoading(false);
-    };
 
+      const updatesCollection = collection(db, "lecture_updates");
+      const q = query(
+        updatesCollection,
+        where("teacherId", "==", currentUser.uid),
+        orderBy("createdAt", "desc")
+      );
+      const querySnapshot = await getDocs(q);
+      const updatesData = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setUpdates(updatesData);
+    } catch (error) {
+      console.error("Error fetching data: ", error);
+      toast.error("Failed to fetch your data.");
+    }
+    setLoading(false);
+  }, [currentUser]); // Dependency for useCallback
+
+  // useEffect now just calls the function
+  useEffect(() => {
     fetchData();
-  }, [currentUser]);
+  }, [fetchData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -75,12 +70,10 @@ function PostUpdatePage() {
       return;
     }
 
-    // Get all the details from the selected assignment object
     const selectedAssignment = teachingAssignments[selectedAssignmentIndex];
 
     const newUpdate = {
       teacherId: currentUser.uid,
-      // Store structured data about the class for future filtering
       classInfo: {
         year: selectedAssignment.year,
         branch: selectedAssignment.branch,
@@ -99,15 +92,14 @@ function PostUpdatePage() {
       await addDoc(updatesCollection, newUpdate);
       toast.success("Update posted successfully!");
 
-      // Reset form
       setSelectedAssignmentIndex("");
       setUpdateType("Cancelled");
       setMessage("");
       setEventDate("");
 
-      // Refresh the list of updates by re-fetching
-      // For simplicity, we can just prepend the new update to the list
-      setUpdates([{ id: new Date().getTime(), ...newUpdate }, ...updates]);
+      // This call will now work correctly
+      fetchData();
+
     } catch (error) {
       console.error("Error adding document: ", error);
       toast.error("Failed to post update.");
@@ -115,7 +107,7 @@ function PostUpdatePage() {
   };
 
   const selectedSubject =
-    selectedAssignmentIndex !== ""
+    selectedAssignmentIndex !== "" && teachingAssignments[selectedAssignmentIndex]
       ? teachingAssignments[selectedAssignmentIndex].subject
       : "N/A";
 
@@ -145,7 +137,6 @@ function PostUpdatePage() {
 
         <div className={styles.formGroup}>
           <label>Subject</label>
-          {/* Subject is now automatically determined by the class selection */}
           <input type="text" value={selectedSubject} readOnly disabled />
         </div>
 
@@ -194,7 +185,6 @@ function PostUpdatePage() {
           <p>Loading...</p>
         ) : (
           updates.map((update) => {
-            // First, figure out where the subject is stored
             const subject = update.classInfo
               ? update.classInfo.subject
               : update.subject;

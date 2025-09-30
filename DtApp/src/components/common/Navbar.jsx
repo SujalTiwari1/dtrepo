@@ -22,13 +22,19 @@ function Navbar() {
       <div className={styles.navLinks}>
         {currentUser ? (
           <>
-            {/* THIS IS THE NEW PART - START */}
+            {/* Show profile link for students */}
             {currentUser.role === 'student' && (
               <Link to="/student/profile" style={{ color: 'white', textDecoration: 'none' }}>
                 Profile
               </Link>
             )}
-            {/* THIS IS THE NEW PART - END */}
+
+            {/* THIS IS THE NEW PART: Show profile link for teachers */}
+            {currentUser.role === 'teacher' && (
+              <Link to="/teacher/profile" style={{ color: 'white', textDecoration: 'none' }}>
+                Profile
+              </Link>
+            )}
 
             <span>Welcome, {currentUser.email}</span>
             <button onClick={handleLogout} className={styles.logoutButton}>Logout</button>
