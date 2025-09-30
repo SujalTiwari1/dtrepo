@@ -16,7 +16,7 @@ import PostUpdatePage from "./pages/Teacher/PostUpdatePage";
 import StudentSchedulePage from "./pages/Student/StudentSchedulePage";
 // New Import
 import StaffPrintQueuePage from "./pages/Staff/StaffPrintQueuePage";
-
+import TeacherProfilePage from './pages/Teacher/TeacherProfilePage';
 
 import Signup from "./pages/Signup";
 import ProfilePage from "./pages/Student/ProfilePage";
@@ -84,6 +84,14 @@ function App() {
                 <PostUpdatePage />
               </ProtectedRoute>
             }
+          />
+          <Route 
+            path="/teacher/profile" 
+            element={
+              <ProtectedRoute allowedRoles={['teacher']}>
+                <TeacherProfilePage />
+              </ProtectedRoute>
+            } 
           />
           <Route path="/signup/teacher" element={<TeacherSignup />} />
 

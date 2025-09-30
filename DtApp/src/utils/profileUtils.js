@@ -5,7 +5,6 @@ const BRANCH_MAP = {
   '108': 'Electronics & Computer Science (EXCS)',
 };
 
-// This helper map is for getting the short code
 const BRANCH_SHORT_MAP = {
     '101': 'IT',
     '102': 'CMPN',
@@ -13,7 +12,8 @@ const BRANCH_SHORT_MAP = {
     '108': 'EXCS',
 };
 
-const extractUsernameFromEmail = (email) => {
+// Add the 'export' keyword here
+export const extractUsernameFromEmail = (email) => {
   if (!email || !email.includes('@')) return 'N/A';
   const localPart = email.split('@')[0];
   const nameParts = localPart.split('.');
@@ -56,7 +56,7 @@ export const decodeRollNumber = (rollNumber, email) => {
     username: extractUsernameFromEmail(email),
     admissionYear,
     branch: BRANCH_MAP[branchCode] || 'Unknown Branch',
-    branchShortName: BRANCH_SHORT_MAP[branchCode] || 'UNKNOWN', // This is the new, important part
+    branchShortName: BRANCH_SHORT_MAP[branchCode] || 'UNKNOWN',
     division,
     specificRollNo,
     currentAcademicYear: academicYear > 4 ? 'Graduated' : academicYear,
