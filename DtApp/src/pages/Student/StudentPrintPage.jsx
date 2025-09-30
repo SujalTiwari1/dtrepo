@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, storage } from '../../firebase/config';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, updateDoc } from 'firebase/storage';
 import { collection, addDoc, query, where, getDocs, Timestamp, orderBy, runTransaction, doc } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext';
 import styles from './StudentPrintPage.module.css';
