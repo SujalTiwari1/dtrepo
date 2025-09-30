@@ -49,19 +49,21 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route // NEW STUDENT PRINT ROUTE
-            path="/student/print"
-            element={
-              <ProtectedRoute allowedRoles={["student"]}>
-                <StudentPrintPage />
-              </ProtectedRoute>
-            }
-          />
+
           <Route
             path="/student/profile"
             element={
               <ProtectedRoute allowedRoles={["student"]}>
                 <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/student/print"
+            element={
+              // ADD 'teacher' to allowedRoles
+              <ProtectedRoute allowedRoles={["student", "teacher"]}>
+                <StudentPrintPage />
               </ProtectedRoute>
             }
           />
