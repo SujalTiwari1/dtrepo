@@ -25,7 +25,7 @@ const generateSlotId = (index) => {
   return `${groupLetter}-${slotNumberPadded}`;
 };
 
-function PrintServicePage() { // Renamed internally for clarity, export remains the same
+function PrintServicePage() { 
   const { currentUser } = useAuth();
 
   // Form State
@@ -33,7 +33,7 @@ function PrintServicePage() { // Renamed internally for clarity, export remains 
   const [copies, setCopies] = useState(1);
   const [color, setColor] = useState('B&W');
   const [sided, setSided] = useState('Single-Sided');
-  const [isStapled, setIsStapled] = useState(false); // New stapling state
+  const [isStapled, setIsStapled] = useState(false); 
 
   // UI State
   const [uploading, setUploading] = useState(false);
@@ -61,19 +61,9 @@ function PrintServicePage() { // Renamed internally for clarity, export remains 
       setFile(e.target.files[0]);
     }
   };
-
-  const markJobCollected = async (jobId) => {
-    const jobRef = doc(db, 'print_jobs', jobId);
-    try {
-      await updateDoc(jobRef, { status: 'Collected' });
-      toast.success(`Job marked as Collected!`);
-      fetchJobs();
-    } catch (error) {
-      console.error('Error marking job as collected: ', error);
-      toast.error('Failed to mark job as collected.');
-    }
-  };
-
+  
+  // *** NOTE: markJobCollected function removed as only staff can do it ***
+  
   const assignNewSlot = async () => {
     let newSlotId = null;
     
@@ -248,16 +238,12 @@ function PrintServicePage() { // Renamed internally for clarity, export remains 
               <span className={styles.statusBadge} style={{ backgroundColor: getStatusColor(job.status) }}>
                 {job.status}
               </span>
-
-              {/* STUDENT COLLECTION BUTTON */}
+              
+              {/* NOTE: Student/Teacher Confirm Collection Button is REMOVED to give control to Staff. */}
               {job.status === 'Ready' && (
-                <button 
-                  className={styles.collectedButton}
-                  onClick={() => markJobCollected(job.id)}
-                  style={{ marginLeft: '1rem', backgroundColor: '#90EE90', color: '#111' }}
-                >
-                  Confirm Collection
-                </button>
+                <small style={{ color: '#90EE90', fontWeight: 'bold' }}>
+                  Ready for Staff Collection
+                </small>
               )}
             </div>
           ))
