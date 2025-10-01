@@ -6,7 +6,7 @@ import Unauthorized from "./pages/Unauthorized";
 
 import Layout from "./components/common/Layout";
 import ProtectedRoute from "./components/common/ProtectedRoute";
-
+import SlotStatusDashboard from './pages/Staff/SlotStatusDashboard'; 
 import StudentDashboard from "./pages/Student/StudentDashboard";
 import TeacherDashboard from "./pages/Teacher/TeacherDashboard";
 import StaffDashboard from "./pages/Staff/StaffDashboard";
@@ -111,6 +111,15 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["staff", "admin"]}> {/* Admin also needs access */}
                 <StaffPrintQueuePage />
+              </ProtectedRoute>
+            }
+          />
+          {/* added a new status dashboard in staff */}
+          <Route // NEW SLOT STATUS DASHBOARD ROUTE
+            path="/staff/slots"
+            element={
+              <ProtectedRoute allowedRoles={["staff", "admin"]}> 
+                <SlotStatusDashboard />
               </ProtectedRoute>
             }
           />
