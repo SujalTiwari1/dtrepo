@@ -2,6 +2,7 @@ import StudentPrintPage from './pages/Student/StudentPrintPage';
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
+
 import Unauthorized from "./pages/Unauthorized";
 
 import Layout from "./components/common/Layout";
@@ -17,6 +18,7 @@ import StudentSchedulePage from "./pages/Student/StudentSchedulePage";
 // New Import
 import StaffPrintQueuePage from "./pages/Staff/StaffPrintQueuePage";
 import TeacherProfilePage from './pages/Teacher/TeacherProfilePage';
+import AdminWhitelistPage from './pages/Admin/AdminWhitelistPage';
 
 import Signup from "./pages/Signup";
 import ProfilePage from "./pages/Student/ProfilePage";
@@ -131,6 +133,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["admin"]}>
                 <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/whitelist"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <AdminWhitelistPage />
               </ProtectedRoute>
             }
           />
