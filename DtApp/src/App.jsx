@@ -22,6 +22,7 @@ import Signup from "./pages/Signup";
 import ProfilePage from "./pages/Student/ProfilePage";
 
 import TeacherSignup from './pages/TeacherSignup';
+import ManageSchedulePage from './pages/Teacher/ManageSchedulePage';
 
 function App() {
   return (
@@ -87,13 +88,21 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route 
-            path="/teacher/profile" 
+          <Route
+            path="/teacher/profile"
             element={
               <ProtectedRoute allowedRoles={['teacher']}>
                 <TeacherProfilePage />
               </ProtectedRoute>
-            } 
+            }
+          />
+          <Route
+            path="/teacher/schedule"
+            element={
+              <ProtectedRoute allowedRoles={['teacher']}>
+                <ManageSchedulePage />
+              </ProtectedRoute>
+            }
           />
           <Route path="/signup/teacher" element={<TeacherSignup />} />
 
