@@ -1,17 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { db, storage } from '../../firebase/config';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-
-import { collection, addDoc, query, where, getDocs, Timestamp, orderBy, runTransaction, doc,updateDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, Timestamp, orderBy, runTransaction, doc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext';
 import styles from './StudentPrintPage.module.css';
 import toast, { Toaster } from 'react-hot-toast';
 
-// --- Slot System Configuration ---
+// --- Slot System Configuration (Remains unchanged) ---
 const MAX_SLOTS = 50;
 const SLOTS_PER_GROUP = 10;
-// We need this document to safely track the next available slot index across users
 const CONFIG_DOC_REF = doc(db, 'config', 'print_slots'); 
+
+const ALLOWED_FILE_TYPES = [
+    'application/pdf', 
+    'application/msword', 
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
+    'image/jpeg', 'image/png', 'image/jpg', 'image/gif'
+];
+const ACCEPT_FILE_STRING = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.gif';
 
 // Helper function to convert the 0-49 index into a human-readable ID (e.g., 'A-01')
 const generateSlotId = (index) => {
@@ -19,25 +25,26 @@ const generateSlotId = (index) => {
   const slotNumber = (index % SLOTS_PER_GROUP) + 1;
   const groupLetter = String.fromCharCode(65 + groupIndex);
   
-  // Pad the number to ensure "A-01" instead of "A-1"
   const slotNumberPadded = String(slotNumber).padStart(2, '0');
   
   return `${groupLetter}-${slotNumberPadded}`;
 };
 
-function PrintServicePage() { // Renamed internally for clarity, export remains the same
+function PrintServicePage() { 
   const { currentUser } = useAuth();
 
   // Form State
   const [file, setFile] = useState(null);
   const [copies, setCopies] = useState(1);
-  const [color, setColor] = useState('B&W');
+  const [color, setColor] = useState('B&W'); // Default to B&W
   const [sided, setSided] = useState('Single-Sided');
-  const [isStapled, setIsStapled] = useState(false); // New stapling state
-
+  const [isStapled, setIsStapled] = useState(false); // Default to No Stapling
+  const [instructions, setInstructions] = useState(''); // New instructions field
+  
   // UI State
   const [uploading, setUploading] = useState(false);
   const [jobs, setJobs] = useState([]);
+
 
   // Fetch jobs for the current user
   const fetchJobs = async () => {
@@ -57,22 +64,34 @@ function PrintServicePage() { // Renamed internally for clarity, export remains 
   }, [currentUser]);
 
   const handleFileChange = (e) => {
-    if (e.target.files[0]) {
-      setFile(e.target.files[0]);
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+        if (!ALLOWED_FILE_TYPES.includes(selectedFile.type)) {
+            toast.error("Invalid file type. Please use PDF, DOC, or common image formats.");
+            setFile(null);
+            e.target.value = null;
+            return;
+        }
+      setFile(selectedFile);
     }
   };
 
-  const markJobCollected = async (jobId) => {
+  // Student/Teacher Collection function (removed from JSX as per request, but kept for full file context)
+  const markJobCollected = async (jobId, slotId) => {
+    if (!window.confirm(`Are you sure you have collected your print for Slot ${slotId}?`)) {
+      return;
+    }
     const jobRef = doc(db, 'print_jobs', jobId);
     try {
       await updateDoc(jobRef, { status: 'Collected' });
-      toast.success(`Job marked as Collected!`);
+      toast.success(`Slot ${slotId} is now marked as Collected!`);
       fetchJobs();
     } catch (error) {
       console.error('Error marking job as collected: ', error);
       toast.error('Failed to mark job as collected.');
     }
   };
+
 
   const assignNewSlot = async () => {
     let newSlotId = null;
@@ -82,19 +101,14 @@ function PrintServicePage() { // Renamed internally for clarity, export remains 
       await runTransaction(db, async (transaction) => {
         const slotDoc = await transaction.get(CONFIG_DOC_REF);
         
-        // Initialize if document does not exist
         let currentSlotIndex = 0;
         if (slotDoc.exists()) {
           currentSlotIndex = slotDoc.data().currentSlotIndex || 0;
         }
         
-        // Calculate the next index and wrap around (0 to 49)
         const nextSlotIndex = (currentSlotIndex + 1) % MAX_SLOTS;
-        
-        // Generate the human-readable ID
         newSlotId = generateSlotId(currentSlotIndex);
         
-        // Update the config document with the next index
         transaction.set(CONFIG_DOC_REF, { currentSlotIndex: nextSlotIndex });
       });
       return newSlotId;
@@ -113,7 +127,6 @@ function PrintServicePage() { // Renamed internally for clarity, export remains 
     }
     
     // --- OVERFLOW CHECK LOGIC ---
-    // Count jobs that are NOT collected (In Progress or Ready)
     const activeJobsQuery = query(
       collection(db, 'print_jobs'),
       where('status', 'in', ['In Progress', 'Ready'])
@@ -131,13 +144,11 @@ function PrintServicePage() { // Renamed internally for clarity, export remains 
     let toastId = toast.loading('Uploading file and assigning slot...');
 
     try {
-      // 1. Assign Unique Slot ID (Atomic Operation)
       const slotId = await assignNewSlot();
       if (!slotId) throw new Error("Failed to assign a unique slot.");
       
       toast.loading('Uploading file...', { id: toastId });
 
-      // 2. Upload file to Firebase Storage
       const storageRef = ref(storage, `print-jobs/${Date.now()}_${file.name}`);
       await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(storageRef);
@@ -150,7 +161,13 @@ function PrintServicePage() { // Renamed internally for clarity, export remains 
         fileName: file.name,
         fileUrl: downloadURL,
         slotId: slotId, 
-        preferences: { copies: Number(copies), color, sided, isStapled }, 
+        preferences: { 
+            copies: Number(copies), 
+            color, 
+            sided, 
+            isStapled,
+            instructions // NEW FIELD
+        }, 
         status: 'In Progress',
         submittedAt: Timestamp.now(),
       };
@@ -159,13 +176,14 @@ function PrintServicePage() { // Renamed internally for clarity, export remains 
       await addDoc(collection(db, 'print_jobs'), jobData);
       toast.success(`Job submitted! Your Slot ID is ${slotId}`, { id: toastId });
 
-      // Reset form and refresh job list
+      // Reset form and UI state
       setFile(null);
-      e.target.value = null; // Clear the file input directly
+      document.getElementById('file-upload').value = null; // Clear the file input explicitly
       setCopies(1);
       setColor('B&W');
       setSided('Single-Sided');
       setIsStapled(false);
+      setInstructions(''); // Reset instructions
       
       fetchJobs();
 
@@ -191,21 +209,53 @@ function PrintServicePage() { // Renamed internally for clarity, export remains 
       <Toaster position="top-center" />
       <h2>Submit a Print Job ({currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)})</h2>
       <form onSubmit={handleSubmit} className={styles.form}>
+        
+        {/* File Upload with Validation */}
         <div className={styles.formGroup}>
-          <label htmlFor="file-upload">Document (PDF, Word, Image)</label>
-          <input id="file-upload" type="file" onChange={handleFileChange} required />
+          <label htmlFor="file-upload">Document (PDF, DOC/X, Image)</label>
+          <input 
+            id="file-upload" 
+            type="file" 
+            onChange={handleFileChange} 
+            required 
+            accept={ACCEPT_FILE_STRING} // Client-side file type hint
+          />
+          {file && <small style={{ color: '#aaa', marginTop: '5px' }}>File selected: {file.name}</small>}
         </div>       
+
         <div className={styles.formGroup}>
           <label htmlFor="copies">Number of Copies</label>
-          <input id="copies" type="number" min="1" value={copies} onChange={(e) => setCopies(e.target.value)} required />
+          <input 
+            id="copies" 
+            type="number" 
+            min="1" 
+            value={copies} 
+            onChange={(e) => setCopies(e.target.value)} 
+            required 
+          />
         </div>
-        <div className={styles.formGroup}>
-          <label htmlFor="color">Color</label>
-          <select id="color" value={color} onChange={(e) => setColor(e.target.value)}>
-            <option>B&W</option>
-            <option>Color</option>
-          </select>
+        
+        {/* Toggle Switches */}
+        <div className={styles.formGroup} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #555', padding: '1rem', borderRadius: '4px' }}>
+            <label style={{ marginBottom: 0 }}>Color Preference</label>
+            <div className={styles.toggleGroup}>
+                <button 
+                    type="button" 
+                    onClick={() => setColor('B&W')}
+                    className={color === 'B&W' ? styles.toggleActive : styles.toggleInactive}
+                >
+                    B&W
+                </button>
+                <button 
+                    type="button" 
+                    onClick={() => setColor('Color')}
+                    className={color === 'Color' ? styles.toggleActive : styles.toggleInactive}
+                >
+                    Color
+                </button>
+            </div>
         </div>
+
         <div className={styles.formGroup}>
           <label htmlFor="sided">Sided</label>
           <select id="sided" value={sided} onChange={(e) => setSided(e.target.value)}>
@@ -213,17 +263,39 @@ function PrintServicePage() { // Renamed internally for clarity, export remains 
             <option>Double-Sided</option>
           </select>
         </div>
-        {/* NEW STAPLING OPTION */}
-        <div className={styles.formGroup} style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <label htmlFor="stapled" style={{ marginBottom: 0 }}>Do you want your document stapled?</label>
-          <input 
-            id="stapled" 
-            type="checkbox" 
-            checked={isStapled} 
-            onChange={(e) => setIsStapled(e.target.checked)} 
-            style={{ width: 'auto', margin: '0 0 0 10px' }} // Adjusted inline style for better alignment
-          />
+
+        <div className={styles.formGroup} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #555', padding: '1rem', borderRadius: '4px' }}>
+            <label style={{ marginBottom: 0 }}>Stapling</label>
+            <div className={styles.toggleGroup}>
+                <button 
+                    type="button" 
+                    onClick={() => setIsStapled(false)}
+                    className={!isStapled ? styles.toggleActive : styles.toggleInactive}
+                >
+                    No Stapling
+                </button>
+                <button 
+                    type="button" 
+                    onClick={() => setIsStapled(true)}
+                    className={isStapled ? styles.toggleActive : styles.toggleInactive}
+                >
+                    Staple
+                </button>
+            </div>
         </div>
+        
+        {/* New Instructions Field */}
+        <div className={styles.formGroup}>
+            <label htmlFor="instructions">More Print Instructions (Optional)</label>
+            <textarea 
+                id="instructions"
+                rows="3"
+                value={instructions} 
+                onChange={(e) => setInstructions(e.target.value)}
+                placeholder="e.g., 'Print pages 1-5 only', 'Bind spiral', 'High quality paper.'"
+            ></textarea>
+        </div>
+
         <button type="submit" className={styles.submitButton} disabled={uploading}>
           {uploading ? 'Submitting...' : 'Submit Print Job'}
         </button>
@@ -240,7 +312,8 @@ function PrintServicePage() { // Renamed internally for clarity, export remains 
                 <strong>Slot: {job.slotId} - {job.fileName}</strong> 
                 <p style={{margin: '4px 0', fontSize: '0.9rem', color: '#aaa'}}>
                   {job.preferences.copies} copies, {job.preferences.color}, {job.preferences.sided}
-                  {job.preferences.isStapled ? ', Stapled' : ''}
+                  {job.preferences.isStapled ? ', Stapled' : ', No Stapling'}
+                  {job.preferences.instructions && <span style={{display: 'block', fontStyle: 'italic', color: '#87CEEB'}}>Instructions: {job.preferences.instructions}</span>}
                 </p>
                 <small>Submitted as {job.submittedByRole} on {job.submittedAt.toDate().toLocaleString()}</small>
               </div>
@@ -249,15 +322,10 @@ function PrintServicePage() { // Renamed internally for clarity, export remains 
                 {job.status}
               </span>
 
-              {/* STUDENT COLLECTION BUTTON */}
               {job.status === 'Ready' && (
-                <button 
-                  className={styles.collectedButton}
-                  onClick={() => markJobCollected(job.id)}
-                  style={{ marginLeft: '1rem', backgroundColor: '#90EE90', color: '#111' }}
-                >
-                  Confirm Collection
-                </button>
+                <small style={{ color: '#90EE90', fontWeight: 'bold' }}>
+                  Ready for Staff Collection
+                </small>
               )}
             </div>
           ))

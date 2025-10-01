@@ -1,0 +1,78 @@
+.dashboardContainer {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.slotGridContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.slotGroup {
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.slotGroup h2 {
+    margin-top: 0;
+    color: #87CEEB;
+}
+
+.slotGroupGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 10px;
+}
+
+.slotCard {
+  padding: 10px 5px;
+  border-radius: 4px;
+  font-weight: bold;
+  text-align: center;
+  transition: all 0.2s;
+  cursor: default;
+}
+
+/* Slot Status Colors */
+.slotEmpty {
+  background-color: #444;
+  color: #bbb;
+}
+.slotEmpty:hover {
+    background-color: #555;
+}
+
+.slotInProgress {
+  background-color: #ffc107; /* Yellow */
+  color: #111;
+}
+
+.slotReady {
+  background-color: #28a745; /* Green */
+  color: white;
+}
+
+/* Legend Styling */
+.statusLegend {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    margin: 1.5rem 0;
+    padding: 1rem;
+    background-color: #333;
+    border-radius: 8px;
+}
+.statusLegend > div {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-weight: bold;
+    color: #111;
+}
+.statusLegend .slotEmpty {
+    color: #fff;
+}
