@@ -69,3 +69,48 @@
     font-weight: bold;
     color: white;
 }
+/* src/pages/Student/StudentPrintPage.module.css */
+
+/* ... existing styles up to .statusBadge ... */
+
+/* New styles for Toggle Buttons */
+.toggleGroup {
+    display: flex;
+    border: 1px solid #007bff;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.toggleGroup button {
+    padding: 0.5rem 1rem;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.15s ease;
+    background-color: transparent;
+    color: #007bff;
+}
+
+/* Active (Selected) Button */
+.toggleActive {
+    background-color: #007bff !important;
+    color: white !important;
+    font-weight: bold;
+}
+
+/* Inactive (Unselected) Button */
+.toggleInactive:hover {
+    background-color: #007bff30; /* Light blue tint on hover */
+}
+
+/* Style for Textarea for instructions */
+.formGroup textarea {
+  padding: 0.75rem;
+  border-radius: 4px;
+  border: 1px solid #555;
+  background-color: #333;
+  color: white;
+  font-size: 1rem;
+  font-family: inherit; /* Ensure font matches the rest of the app */
+  resize: vertical; /* Allow vertical resizing only */
+}

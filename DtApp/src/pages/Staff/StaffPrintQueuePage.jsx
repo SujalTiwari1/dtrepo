@@ -1,34 +1,80 @@
-import React, { useState, useEffect } from 'react';
-import { db, storage } from '../../firebase/config'; // Import storage
-import { collection, query, where, getDocs, updateDoc, doc, orderBy, deleteDoc } from 'firebase/firestore'; // Import deleteDoc
-import { ref, deleteObject } from 'firebase/storage'; // Import deleteObject
-import { useAuth } from '../../context/AuthContext'; // Import useAuth
+import React, { useState, useEffect, useCallback } from 'react';
+import { db, storage } from '../../firebase/config'; 
+import { collection, query, where, getDocs, updateDoc, doc, orderBy, deleteDoc, Timestamp } from 'firebase/firestore'; 
+import { ref, deleteObject } from 'firebase/storage'; 
+import { useAuth } from '../../context/AuthContext'; 
 import styles from './StaffPrintQueuePage.module.css';
 import toast, { Toaster } from 'react-hot-toast';
 
+// Define 24 hours in milliseconds (for the client-side cleanup proxy)
+const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000; 
+
 function StaffPrintQueuePage() {
-  const { currentUser } = useAuth(); // Use AuthContext to check role
+  const { currentUser } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('In Progress'); // New state for tabs
 
-  // Fetch jobs that are 'In Progress' or 'Ready'
-  const fetchJobs = async () => {
+  // Function to perform cleanup (called before fetching active jobs)
+  const cleanupOldJobs = useCallback(async () => {
+    // 1. Query for all COLLECTED jobs
+    const collectedQuery = query(
+      collection(db, 'print_jobs'),
+      where('status', '==', 'Collected')
+    );
+    const collectedSnapshot = await getDocs(collectedQuery);
+
+    let jobsDeleted = 0;
+    
+    collectedSnapshot.docs.forEach(async (doc) => {
+      const data = doc.data();
+      
+      // Check if the job's collection time is older than 24 hours
+      // We use submittedAt as a proxy for collected time in this demo logic
+      if (data.submittedAt && (Timestamp.now().toMillis() - data.submittedAt.toMillis() > ONE_DAY_IN_MS)) {
+        
+        try {
+          // Delete file from Storage
+          const storagePath = data.fileUrl.split('/o/')[1].split('?alt=media')[0];
+          const decodedPath = decodeURIComponent(storagePath);
+          const fileRef = ref(storage, decodedPath);
+          await deleteObject(fileRef);
+
+          // Delete document from Firestore
+          await deleteDoc(doc.ref);
+          jobsDeleted++;
+        } catch (error) {
+          // Log error but continue cleanup
+          console.error(`Failed to delete old job/file: ${doc.id}`, error);
+        }
+      }
+    });
+
+    if (jobsDeleted > 0) {
+      toast.success(`${jobsDeleted} old print slots cleared!`);
+    }
+  }, []); 
+
+  
+  // Fetch ALL jobs and filter them based on the active tab
+  const fetchJobs = useCallback(async () => {
     setLoading(true);
     try {
+      // Step 1: Run Cleanup first
+      await cleanupOldJobs();
+      
+      // Step 2: Fetch ALL jobs (no status filter here, we filter client-side)
       const q = query(
         collection(db, 'print_jobs'),
         orderBy('submittedAt', 'asc')
       );
       const querySnapshot = await getDocs(q);
 
-      let allJobs = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Store all jobs and let the tabs filter them
+      const allJobs = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // Client-side filter to only show active jobs for staff view (and admin)
-      // This includes the new slot and stapling data fields
-      const activeJobs = allJobs.filter(job => job.status === 'In Progress' || job.status === 'Ready');
-
-      setJobs(activeJobs);
-      toast.success(`Fetched ${activeJobs.length} active print jobs.`, { duration: 1500 });
+      setJobs(allJobs);
+      toast.success(`Total print jobs fetched: ${allJobs.length}.`, { duration: 1500 });
 
     } catch (error) {
       console.error('Error fetching print jobs: ', error);
@@ -36,11 +82,13 @@ function StaffPrintQueuePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [cleanupOldJobs]);
+
 
   useEffect(() => {
     fetchJobs();
-  }, [currentUser]);
+  }, [fetchJobs]);
+
 
   const updateJobStatus = async (jobId, newStatus) => {
     const jobRef = doc(db, 'print_jobs', jobId);
@@ -69,10 +117,8 @@ function StaffPrintQueuePage() {
 
     try {
       // 1. Delete file from Firebase Storage
-      // Uses the fileUrl saved in the job document
       const storagePath = job.fileUrl.split('/o/')[1].split('?alt=media')[0];
       const decodedPath = decodeURIComponent(storagePath);
-
       const fileRef = ref(storage, decodedPath);
       await deleteObject(fileRef);
 
@@ -97,6 +143,10 @@ function StaffPrintQueuePage() {
     }
   };
 
+  // Client-side filtering based on the selected tab
+  const filteredJobs = jobs.filter(job => job.status === activeTab);
+
+
   if (loading) {
     return <p>Loading Print Queue...</p>;
   }
@@ -106,11 +156,34 @@ function StaffPrintQueuePage() {
       <Toaster position="top-center" />
       <h1>Staff Print Queue</h1>
       <p>Slot Code is the unique ID for job collection.</p>
+      
+      {/* Tab Navigation */}
+      <div className={styles.tabContainer}>
+        <button 
+          className={activeTab === 'In Progress' ? styles.tabActive : styles.tabInactive}
+          onClick={() => setActiveTab('In Progress')}
+        >
+          In Progress ({jobs.filter(j => j.status === 'In Progress').length})
+        </button>
+        <button 
+          className={activeTab === 'Ready' ? styles.tabActive : styles.tabInactive}
+          onClick={() => setActiveTab('Ready')}
+        >
+          Ready to Collect ({jobs.filter(j => j.status === 'Ready').length})
+        </button>
+        <button 
+          className={activeTab === 'Collected' ? styles.tabActive : styles.tabInactive}
+          onClick={() => setActiveTab('Collected')}
+        >
+          Collected ({jobs.filter(j => j.status === 'Collected').length})
+        </button>
+      </div>
 
-      {jobs.length === 0 && <p className={styles.noJobs}>The print queue is empty! Great job!</p>}
+
+      {filteredJobs.length === 0 && <p className={styles.noJobs}>No jobs currently in the "{activeTab}" status.</p>}
 
       <div className={styles.jobList}>
-        {jobs.map((job) => (
+        {filteredJobs.map((job) => (
           <div key={job.id} className={styles.jobCard}>
             <div className={styles.jobDetails}>
               <h3>Slot ID: <span className={styles.jobId}>{job.slotId}</span></h3>
@@ -120,6 +193,7 @@ function StaffPrintQueuePage() {
                 <strong>Preferences:</strong>
                 {job.preferences.copies} copies, {job.preferences.color}, {job.preferences.sided}
                 {job.preferences.isStapled ? ', Stapled' : ', Not Stapled'} 
+                {job.preferences.instructions && <span style={{display: 'block', fontStyle: 'italic', color: '#87CEEB'}}>Instructions: {job.preferences.instructions}</span>}
               </p>
               <small>Submitted At: {job.submittedAt.toDate().toLocaleString()}</small>
             </div>
@@ -132,7 +206,7 @@ function StaffPrintQueuePage() {
                 {job.status}
               </span>
 
-              {/* Action: Mark as Ready (Only if in progress) */}
+              {/* Action: Mark as Ready (Only shown on 'In Progress' tab) */}
               {job.status === 'In Progress' && (
                 <button
                   className={styles.readyButton}
@@ -142,7 +216,7 @@ function StaffPrintQueuePage() {
                 </button>
               )}
 
-              {/* Action: Mark as Collected (Empty Slot) (Only if Ready) */}
+              {/* Action: Mark as Collected (Only shown on 'Ready' tab) */}
               {job.status === 'Ready' && ( 
                  <button
                   className={styles.collectedButton}
@@ -152,11 +226,12 @@ function StaffPrintQueuePage() {
                 </button>
               )}
               
-              {/* Delete Job Button (Visible to Staff and Admin) */}
+              {/* Delete Job Button (Visible on all tabs) */}
               {currentUser && (currentUser.role === 'staff' || currentUser.role === 'admin') && (
                 <button
                   className={styles.deleteButton}
                   onClick={() => deleteJob(job)}
+                  style={{marginTop: '1rem'}} // Added margin for spacing
                 >
                   Delete Job
                 </button>
