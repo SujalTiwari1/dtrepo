@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react"; // Import useCallback
+import React, { useState, useEffect, useCallback } from "react";
 import { db } from "../../firebase/config";
 import {
   collection,
@@ -15,22 +15,32 @@ import { useAuth } from "../../context/AuthContext";
 import styles from "./PostUpdatePage.module.css";
 import toast, { Toaster } from "react-hot-toast";
 
+// Helper function to get the current date and time in the correct format for datetime-local input
+const getCurrentDateTimeLocal = () => {
+  const now = new Date();
+  // Adjust for the local timezone offset
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  // Format to 'YYYY-MM-DDTHH:mm'
+  return now.toISOString().slice(0, 16);
+};
+
+
 function PostUpdatePage() {
   const { currentUser } = useAuth();
 
   const [teachingAssignments, setTeachingAssignments] = useState([]);
-  const [selectedAssignmentIndex, setSelectedAssignmentIndex] = useState("");
-  const [updateType, setUpdateType] = useState("Cancelled");
-  const [message, setMessage] = useState("");
-  const [eventDate, setEventDate] = useState("");
   const [updates, setUpdates] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // --- THIS IS THE MOVED FUNCTION ---
-  // It is now in the main component scope and wrapped in useCallback for optimization.
-  const fetchData = useCallback(async () => {
-    if (!currentUser) return;
+  // Form state - eventDate now defaults to the current time
+  const [selectedAssignmentIndex, setSelectedAssignmentIndex] = useState("");
+  const [updateType, setUpdateType] = useState("Cancelled");
+  const [message, setMessage] = useState("");
+  const [eventDate, setEventDate] = useState(getCurrentDateTimeLocal()); // <-- KEY CHANGE HERE
 
+  const fetchData = useCallback(async () => {
+    // ... (fetchData function remains unchanged)
+    if (!currentUser) return;
     setLoading(true);
     try {
       const userDocRef = doc(db, "users", currentUser.uid);
@@ -56,9 +66,8 @@ function PostUpdatePage() {
       toast.error("Failed to fetch your data.");
     }
     setLoading(false);
-  }, [currentUser]); // Dependency for useCallback
+  }, [currentUser]);
 
-  // useEffect now just calls the function
   useEffect(() => {
     fetchData();
   }, [fetchData]);
@@ -88,16 +97,15 @@ function PostUpdatePage() {
     };
 
     try {
-      const updatesCollection = collection(db, "lecture_updates");
-      await addDoc(updatesCollection, newUpdate);
+      await addDoc(collection(db, "lecture_updates"), newUpdate);
       toast.success("Update posted successfully!");
 
+      // Reset form (including the date to the current time again)
       setSelectedAssignmentIndex("");
       setUpdateType("Cancelled");
       setMessage("");
-      setEventDate("");
+      setEventDate(getCurrentDateTimeLocal()); // <-- KEY CHANGE HERE
 
-      // This call will now work correctly
       fetchData();
 
     } catch (error) {
@@ -116,6 +124,7 @@ function PostUpdatePage() {
       <Toaster position="top-center" />
       <h2>Post a New Lecture Update</h2>
       <form onSubmit={handleSubmit} className={styles.form}>
+        {/* ... form fields for class, subject, etc. remain the same ... */}
         <div className={styles.formGroup}>
           <label htmlFor="class-select">Select Class</label>
           <select
@@ -177,8 +186,8 @@ function PostUpdatePage() {
         </button>
       </form>
 
+      {/* ... display for past updates remains the same ... */}
       <hr />
-
       <div className={styles.updateList}>
         <h2>Your Posted Updates</h2>
         {loading ? (
