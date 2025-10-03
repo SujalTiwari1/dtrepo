@@ -1,19 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { db, storage } from '../../firebase/config';
-import { collection, query, where, getDocs, updateDoc, doc, orderBy, deleteDoc, Timestamp } from 'firebase/firestore';
-import { ref, deleteObject } from 'firebase/storage';
-import { useAuth } from '../../context/AuthContext';
+import { db, storage } from '../../firebase/config'; 
+import { collection, query, where, getDocs, updateDoc, doc, orderBy, deleteDoc, Timestamp } from 'firebase/firestore'; 
+import { ref, deleteObject } from 'firebase/storage'; 
+import { useAuth } from '../../context/AuthContext'; 
 import styles from './StaffPrintQueuePage.module.css';
 import toast, { Toaster } from 'react-hot-toast';
 
 // Define 24 hours in milliseconds (for the client-side cleanup proxy)
-const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
+const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000; 
 
 function StaffPrintQueuePage() {
   const { currentUser } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('In Progress'); // State for tabs
+  const [activeTab, setActiveTab] = useState('In Progress'); 
 
   // Function to perform cleanup (1-Day Auto-Deletion Logic)
   const cleanupOldJobs = useCallback(async () => {
@@ -25,19 +25,21 @@ function StaffPrintQueuePage() {
     const collectedSnapshot = await getDocs(collectedQuery);
 
     let jobsDeleted = 0;
-
+    
     collectedSnapshot.docs.forEach(async (doc) => {
       const data = doc.data();
-
+      
       // Check if the job's collection time is older than 24 hours
       if (data.submittedAt && (Timestamp.now().toMillis() - data.submittedAt.toMillis() > ONE_DAY_IN_MS)) {
-
+        
         try {
-          // Delete file from Storage
-          const storagePath = data.fileUrl.split('/o/')[1].split('?alt=media')[0];
-          const decodedPath = decodeURIComponent(storagePath);
-          const fileRef = ref(storage, decodedPath);
-          await deleteObject(fileRef);
+          // DELETE ALL FILES in the job
+          data.files.forEach(async (fileData) => {
+              const storagePath = fileData.fileUrl.split('/o/')[1].split('?alt=media')[0];
+              const decodedPath = decodeURIComponent(storagePath);
+              const fileRef = ref(storage, decodedPath);
+              await deleteObject(fileRef);
+          });
 
           // Delete document from Firestore
           await deleteDoc(doc.ref);
@@ -51,16 +53,16 @@ function StaffPrintQueuePage() {
     if (jobsDeleted > 0) {
       toast.success(`${jobsDeleted} old print slots cleared!`);
     }
-  }, []);
+  }, []); 
 
-
+  
   // Fetch ALL jobs and filter them based on the active tab
   const fetchJobs = useCallback(async () => {
     setLoading(true);
     try {
       // Step 1: Run Cleanup first
       await cleanupOldJobs();
-
+      
       // Step 2: Fetch ALL jobs 
       const q = query(
         collection(db, 'print_jobs'),
@@ -112,16 +114,18 @@ function StaffPrintQueuePage() {
     const toastId = toast.loading(`Deleting job ${job.slotId}...`);
 
     try {
-      // 1. Delete file from Firebase Storage
-      const storagePath = job.fileUrl.split('/o/')[1].split('?alt=media')[0];
-      const decodedPath = decodeURIComponent(storagePath);
-      const fileRef = ref(storage, decodedPath);
-      await deleteObject(fileRef);
+      // 1. Delete ALL files from Firebase Storage
+      job.files.forEach(async (fileData) => {
+          const storagePath = fileData.fileUrl.split('/o/')[1].split('?alt=media')[0];
+          const decodedPath = decodeURIComponent(storagePath);
+          const fileRef = ref(storage, decodedPath);
+          await deleteObject(fileRef);
+      });
 
       // 2. Delete document from Firestore
       await deleteDoc(doc(db, 'print_jobs', job.id));
 
-      toast.success(`Job ${job.slotId} and file deleted successfully!`, { id: toastId });
+      toast.success(`Job ${job.slotId} and associated files deleted successfully!`, { id: toastId });
       fetchJobs();
 
     } catch (error) {
@@ -152,22 +156,22 @@ function StaffPrintQueuePage() {
       <Toaster position="top-center" />
       <h1>Staff Print Queue</h1>
       <p>Slot Code is the unique ID for job collection.</p>
-
+      
       {/* Tab Navigation */}
       <div className={styles.tabContainer}>
-        <button
+        <button 
           className={activeTab === 'In Progress' ? styles.tabActive : styles.tabInactive}
           onClick={() => setActiveTab('In Progress')}
         >
           In Progress ({jobs.filter(j => j.status === 'In Progress').length})
         </button>
-        <button
+        <button 
           className={activeTab === 'Ready' ? styles.tabActive : styles.tabInactive}
           onClick={() => setActiveTab('Ready')}
         >
           Ready to Collect ({jobs.filter(j => j.status === 'Ready').length})
         </button>
-        <button
+        <button 
           className={activeTab === 'Collected' ? styles.tabActive : styles.tabInactive}
           onClick={() => setActiveTab('Collected')}
         >
@@ -184,31 +188,41 @@ function StaffPrintQueuePage() {
             <div className={styles.jobDetails}>
               <h3>Slot ID: <span className={styles.jobId}>{job.slotId}</span></h3>
               <p><strong>Submitted By:</strong> {job.submittedByEmail} ({job.submittedByRole})</p>
-
-              {/* REVERTED: Simple link to file */}
-              <p>
-                <strong>File:</strong>
-                <a href={job.fileUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#90EE90', textDecoration: 'underline', marginLeft: '5px' }}>
-                  {job.fileName}
-                </a>
-              </p>
-
-              <div style={{ fontSize: '0.95rem', marginTop: '0.5rem' }}>
-                <p style={{ margin: '0' }}><strong>Copies:</strong> {job.preferences.copies}</p>
-                <p style={{ margin: '0' }}><strong>Colour:</strong> {job.preferences.color}</p>
-                <p style={{ margin: '0' }}><strong>Sided:</strong> {job.preferences.sided}</p>
-                <p style={{ margin: '0' }}><strong>Stapling:</strong> {job.preferences.isStapled ? 'Yes' : 'No'}</p>
-
-                {job.preferences.instructions && (
-                  <div style={{ marginTop: '0.5rem', borderLeft: '3px solid #007bff', paddingLeft: '5px' }}>
-                    <strong style={{ display: 'block' }}>Instructions:</strong>
-                    <span style={{ fontStyle: 'italic', color: '#87CEEB' }}>
-                      {job.preferences.instructions}
-                    </span>
-                  </div>
-                )}
+              
+              {/* File Display - Show List of Documents */}
+              <p style={{ margin: '0' }}><strong>Documents ({job.files.length}):</strong></p>
+              <div style={{ paddingLeft: '15px', marginBottom: '10px' }}>
+                  {job.files.map((fileData, index) => (
+                      <a 
+                          key={index} 
+                          href={fileData.fileUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          style={{ display: 'block', color: '#90EE90', textDecoration: 'underline', fontSize: '0.9em' }}
+                          title={`Click to view ${fileData.fileName}`}
+                      >
+                          {index + 1}. {fileData.fileName}
+                      </a>
+                  ))}
               </div>
-              <small>Submitted At: {job.submittedAt.toDate().toLocaleString()}</small>
+
+              {/* Preferences Display (Formatted) */}
+              <div style={{ fontSize: '0.95rem', marginTop: '0.5rem' }}>
+                  <p style={{ margin: '0' }}><strong>Copies:</strong> {job.preferences.copies}</p>
+                  <p style={{ margin: '0' }}><strong>Colour:</strong> {job.preferences.color}</p>
+                  <p style={{ margin: '0' }}><strong>Sided:</strong> {job.preferences.sided}</p>
+                  <p style={{ margin: '0' }}><strong>Stapling:</strong> {job.preferences.isStapled ? 'Yes' : 'No'}</p>
+
+                  {job.preferences.instructions && (
+                      <div style={{ marginTop: '0.5rem', borderLeft: '3px solid #007bff', paddingLeft: '5px' }}>
+                          <strong style={{ display: 'block' }}>Instructions:</strong>
+                          <span style={{ fontStyle: 'italic', color: '#87CEEB' }}>
+                              {job.preferences.instructions}
+                          </span>
+                      </div>
+                  )}
+              </div>
+              <small style={{marginTop: '10px', display: 'block'}}>Submitted At: {job.submittedAt.toDate().toLocaleString()}</small>
             </div>
 
             <div className={styles.jobActions}>
@@ -230,21 +244,21 @@ function StaffPrintQueuePage() {
               )}
 
               {/* Action: Mark as Collected (Only shown on 'Ready' tab) */}
-              {job.status === 'Ready' && (
-                <button
+              {job.status === 'Ready' && ( 
+                 <button
                   className={styles.collectedButton}
                   onClick={() => updateJobStatus(job.id, 'Collected')}
                 >
                   Mark Collected (Empty Slot)
                 </button>
               )}
-
+              
               {/* Delete Job Button (Visible on all tabs) */}
               {currentUser && (currentUser.role === 'staff' || currentUser.role === 'admin') && (
                 <button
                   className={styles.deleteButton}
                   onClick={() => deleteJob(job)}
-                  style={{ marginTop: '1rem' }} // Added margin for spacing
+                  style={{marginTop: '1rem'}} 
                 >
                   Delete Job
                 </button>

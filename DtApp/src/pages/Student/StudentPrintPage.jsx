@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db, storage } from '../../firebase/config';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { collection, addDoc, query, where, getDocs, Timestamp, orderBy, runTransaction, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, Timestamp, orderBy, runTransaction, doc,updateDoc } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext';
 import styles from './StudentPrintPage.module.css';
 import toast, { Toaster } from 'react-hot-toast';
 
-// --- Slot System Configuration (Remains unchanged) ---
+// --- Slot System Configuration ---
 const MAX_SLOTS = 50;
 const SLOTS_PER_GROUP = 10;
 const CONFIG_DOC_REF = doc(db, 'config', 'print_slots'); 
@@ -14,7 +14,7 @@ const CONFIG_DOC_REF = doc(db, 'config', 'print_slots');
 const ALLOWED_FILE_TYPES = [
     'application/pdf', 
     'application/msword', 
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'image/jpeg', 'image/png', 'image/jpg', 'image/gif'
 ];
 const ACCEPT_FILE_STRING = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.gif';
@@ -34,12 +34,12 @@ function PrintServicePage() {
   const { currentUser } = useAuth();
 
   // Form State
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]); 
   const [copies, setCopies] = useState(1);
-  const [color, setColor] = useState('B&W'); // Default to B&W
+  const [color, setColor] = useState('B&W'); 
   const [sided, setSided] = useState('Single-Sided');
-  const [isStapled, setIsStapled] = useState(false); // Default to No Stapling
-  const [instructions, setInstructions] = useState(''); // New instructions field
+  const [isStapled, setIsStapled] = useState(false); 
+  const [instructions, setInstructions] = useState(''); 
   
   // UI State
   const [uploading, setUploading] = useState(false);
@@ -63,40 +63,24 @@ function PrintServicePage() {
     fetchJobs();
   }, [currentUser]);
 
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-        if (!ALLOWED_FILE_TYPES.includes(selectedFile.type)) {
-            toast.error("Invalid file type. Please use PDF, DOC, or common image formats.");
-            setFile(null);
-            e.target.value = null;
-            return;
-        }
-      setFile(selectedFile);
+  const handleFilesChange = (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    
+    // Validate file types
+    const invalidFile = selectedFiles.find(file => !ALLOWED_FILE_TYPES.includes(file.type));
+    if (invalidFile) {
+        toast.error(`Invalid file type: ${invalidFile.name}. Please use PDF, DOC, or common image formats.`);
+        setFiles([]);
+        e.target.value = null;
+        return;
     }
+
+    setFiles(selectedFiles);
   };
-
-  // Student/Teacher Collection function (removed from JSX as per request, but kept for full file context)
-  const markJobCollected = async (jobId, slotId) => {
-    if (!window.confirm(`Are you sure you have collected your print for Slot ${slotId}?`)) {
-      return;
-    }
-    const jobRef = doc(db, 'print_jobs', jobId);
-    try {
-      await updateDoc(jobRef, { status: 'Collected' });
-      toast.success(`Slot ${slotId} is now marked as Collected!`);
-      fetchJobs();
-    } catch (error) {
-      console.error('Error marking job as collected: ', error);
-      toast.error('Failed to mark job as collected.');
-    }
-  };
-
-
+  
   const assignNewSlot = async () => {
     let newSlotId = null;
     
-    // Use a transaction to safely read and update the slot counter
     try {
       await runTransaction(db, async (transaction) => {
         const slotDoc = await transaction.get(CONFIG_DOC_REF);
@@ -121,8 +105,8 @@ function PrintServicePage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!file) {
-      toast.error("Please select a file to upload.");
+    if (files.length === 0) {
+      toast.error("Please select at least one file to upload.");
       return;
     }
     
@@ -141,32 +125,44 @@ function PrintServicePage() {
     // --- END OVERFLOW CHECK LOGIC ---
 
     setUploading(true);
-    let toastId = toast.loading('Uploading file and assigning slot...');
+    let toastId = toast.loading(`Uploading ${files.length} file(s) and assigning slot...`);
 
     try {
+      // 1. Assign Unique Slot ID (Atomic Operation)
       const slotId = await assignNewSlot();
       if (!slotId) throw new Error("Failed to assign a unique slot.");
       
-      toast.loading('Uploading file...', { id: toastId });
+      // 2. Upload all files sequentially and collect URLs/Names
+      const uploadedFilesData = [];
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        toast.loading(`Uploading file ${i + 1} of ${files.length}: ${file.name}`, { id: toastId });
+        
+        const storageRef = ref(storage, `print-jobs/${Date.now()}_${file.name}`);
+        await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(storageRef);
 
-      const storageRef = ref(storage, `print-jobs/${Date.now()}_${file.name}`);
-      await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(storageRef);
+        uploadedFilesData.push({
+            fileName: file.name,
+            fileUrl: downloadURL,
+        });
+      }
 
-      // 3. Create document in Firestore
+
+      // 3. Create SINGLE document in Firestore
       const jobData = {
         submittedById: currentUser.uid, 
         submittedByEmail: currentUser.email,
         submittedByRole: currentUser.role,
-        fileName: file.name,
-        fileUrl: downloadURL,
+        files: uploadedFilesData, 
         slotId: slotId, 
         preferences: { 
             copies: Number(copies), 
             color, 
             sided, 
             isStapled,
-            instructions // NEW FIELD
+            instructions
         }, 
         status: 'In Progress',
         submittedAt: Timestamp.now(),
@@ -174,16 +170,16 @@ function PrintServicePage() {
       toast.loading(`Submitting print job for slot ${slotId}...`, { id: toastId });
 
       await addDoc(collection(db, 'print_jobs'), jobData);
-      toast.success(`Job submitted! Your Slot ID is ${slotId}`, { id: toastId });
+      toast.success(`Job submitted! Slot ${slotId} contains ${files.length} documents.`, { id: toastId });
 
       // Reset form and UI state
-      setFile(null);
-      document.getElementById('file-upload').value = null; // Clear the file input explicitly
+      setFiles([]);
+      document.getElementById('file-upload').value = null; 
       setCopies(1);
       setColor('B&W');
       setSided('Single-Sided');
       setIsStapled(false);
-      setInstructions(''); // Reset instructions
+      setInstructions('');
       
       fetchJobs();
 
@@ -210,19 +206,25 @@ function PrintServicePage() {
       <h2>Submit a Print Job ({currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)})</h2>
       <form onSubmit={handleSubmit} className={styles.form}>
         
-        {/* File Upload with Validation */}
+        {/* File Upload with Multiple Selection */}
         <div className={styles.formGroup}>
-          <label htmlFor="file-upload">Document (PDF, DOC/X, Image)</label>
+          <label htmlFor="file-upload">Documents (PDF, DOC/X, Image)</label>
           <input 
             id="file-upload" 
             type="file" 
-            onChange={handleFileChange} 
+            onChange={handleFilesChange} 
             required 
-            accept={ACCEPT_FILE_STRING} // Client-side file type hint
+            accept={ACCEPT_FILE_STRING} 
+            multiple // CRITICAL: Allows multiple file selection
           />
-          {file && <small style={{ color: '#aaa', marginTop: '5px' }}>File selected: {file.name}</small>}
+          {files.length > 0 && 
+            <small style={{ color: '#aaa', marginTop: '5px' }}>
+                {files.length} file(s) selected: {files.map(f => f.name).join(', ')}
+            </small>
+          }
         </div>       
 
+        {/* Copies */}
         <div className={styles.formGroup}>
           <label htmlFor="copies">Number of Copies</label>
           <input 
@@ -235,7 +237,7 @@ function PrintServicePage() {
           />
         </div>
         
-        {/* Toggle Switches */}
+        {/* Toggle Switches - Color */}
         <div className={styles.formGroup} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #555', padding: '1rem', borderRadius: '4px' }}>
             <label style={{ marginBottom: 0 }}>Color Preference</label>
             <div className={styles.toggleGroup}>
@@ -256,6 +258,7 @@ function PrintServicePage() {
             </div>
         </div>
 
+        {/* Sided */}
         <div className={styles.formGroup}>
           <label htmlFor="sided">Sided</label>
           <select id="sided" value={sided} onChange={(e) => setSided(e.target.value)}>
@@ -264,6 +267,7 @@ function PrintServicePage() {
           </select>
         </div>
 
+        {/* Toggle Switches - Stapling */}
         <div className={styles.formGroup} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #555', padding: '1rem', borderRadius: '4px' }}>
             <label style={{ marginBottom: 0 }}>Stapling</label>
             <div className={styles.toggleGroup}>
@@ -284,7 +288,7 @@ function PrintServicePage() {
             </div>
         </div>
         
-        {/* New Instructions Field */}
+        {/* Instructions Field */}
         <div className={styles.formGroup}>
             <label htmlFor="instructions">More Print Instructions (Optional)</label>
             <textarea 
@@ -297,7 +301,7 @@ function PrintServicePage() {
         </div>
 
         <button type="submit" className={styles.submitButton} disabled={uploading}>
-          {uploading ? 'Submitting...' : 'Submit Print Job'}
+          {uploading ? `Submitting ${files.length} file(s)...` : 'Submit Print Job'}
         </button>
       </form>
 
@@ -308,14 +312,47 @@ function PrintServicePage() {
         {jobs.length > 0 ? (
           jobs.map(job => (
             <div key={job.id} className={styles.jobCard}>
-              <div>
-                <strong>Slot: {job.slotId} - {job.fileName}</strong> 
-                <p style={{margin: '4px 0', fontSize: '0.9rem', color: '#aaa'}}>
-                  {job.preferences.copies} copies, {job.preferences.color}, {job.preferences.sided}
-                  {job.preferences.isStapled ? ', Stapled' : ', No Stapling'}
-                  {job.preferences.instructions && <span style={{display: 'block', fontStyle: 'italic', color: '#87CEEB'}}>Instructions: {job.preferences.instructions}</span>}
-                </p>
-                <small>Submitted as {job.submittedByRole} on {job.submittedAt.toDate().toLocaleString()}</small>
+              <div className={styles.jobDetails}>
+                
+                {/* Job ID and Document Count */}
+                <h3>Slot: {job.slotId} - {job.files ? job.files.length : 0} Document(s)</h3> 
+                
+                {/* List of Documents */}
+                <p style={{ margin: '0' }}><strong>Documents:</strong></p>
+                <div style={{ paddingLeft: '15px', marginBottom: '10px' }}>
+                    {job.files && job.files.map((fileData, index) => ( // Defensive check
+                        <a 
+                            key={index} 
+                            href={fileData.fileUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            style={{ display: 'block', color: '#90EE90', textDecoration: 'underline', fontSize: '0.9em' }}
+                            title={`Click to view ${fileData.fileName}`}
+                        >
+                            {index + 1}. {fileData.fileName}
+                        </a>
+                    ))}
+                    {!job.files && <span style={{color: '#dc3545'}}>File data is missing (Old Job Format).</span>}
+                </div>
+                
+                {/* Formatted Preferences Display */}
+                <div style={{ fontSize: '0.95rem', marginTop: '0.5rem' }}>
+                    <p style={{ margin: '0' }}><strong>Copies:</strong> {job.preferences.copies || 'N/A'}</p>
+                    <p style={{ margin: '0' }}><strong>Colour:</strong> {job.preferences.color || 'N/A'}</p>
+                    <p style={{ margin: '0' }}><strong>Sided:</strong> {job.preferences.sided || 'N/A'}</p>
+                    <p style={{ margin: '0' }}><strong>Stapling:</strong> {job.preferences.isStapled ? 'Yes' : 'No'}</p>
+
+                    {job.preferences.instructions && (
+                        <div style={{ marginTop: '0.5rem', borderLeft: '3px solid #007bff', paddingLeft: '5px' }}>
+                            <strong style={{ display: 'block' }}>Instructions:</strong>
+                            <span style={{ fontStyle: 'italic', color: '#87CEEB' }}>
+                                {job.preferences.instructions}
+                            </span>
+                        </div>
+                    )}
+                </div>
+                
+                <small style={{marginTop: '10px', display: 'block'}}>Submitted as {job.submittedByRole} on {job.submittedAt.toDate().toLocaleString()}</small>
               </div>
               
               <span className={styles.statusBadge} style={{ backgroundColor: getStatusColor(job.status) }}>
