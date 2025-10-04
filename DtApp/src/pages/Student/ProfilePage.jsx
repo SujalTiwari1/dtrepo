@@ -55,7 +55,7 @@ function ProfilePage() {
       
       <h3>Academic Information</h3>
       <div className={styles.profileGrid}>
-        <div className={styles.infoItem}><label>Roll Number</label><span>{decodedData.specificRollNo}</span></div>
+        <div className={styles.infoItem}><label>Roll Number</label><span>{decodedData.rollNumber}</span></div>
         <div className={styles.infoItem}><label>Division</label><span>{decodedData.division}</span></div>
         <div className={styles.infoItem}><label>Branch</label><span>{decodedData.branch}</span></div>
         <div className={styles.infoItem}><label>Academic Year</label><span>{decodedData.currentAcademicYear}</span></div>
